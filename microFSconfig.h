@@ -25,9 +25,21 @@
 #ifndef MICRO_FS_CONFIG_H
 #define MICRO_FS_CONFIG_H
 
-#define MICRO_FS_SECTORS 63
-#define MICRO_FS_SECTOR_BYTES 64
-#define MICRO_FS_FILENAME_LEN 10
-#define MICRO_FS_RAM_ATTR // __attribute__ ((aligned(4))
+#include <assert.h>
+
+#define UFAT_DEBUG(x) // printf x
+#define UFAT_ERROR(x) printf x
+#define UFAT_INFO(x)  // printf x
+#define UFAT_INFO_SNPRINT(x) snprintf x
+
+#define UFAT_RAND rand
+
+int traceHandler(const char *format, ...);
+#define UFAT_TRACE(x) traceHandler x
+
+void assertHandler(char *file, int line);
+#define UFAT_ASSERT(expr)                                                    \
+  if (!(expr))                                                                 \
+  assertHandler(__FILE__, __LINE__)
 
 #endif
