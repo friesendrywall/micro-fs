@@ -67,6 +67,8 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   if (address <
       FAKE_PROM_TABLE_SECTORS * UFAT_TABLE_COUNT * FAKE_PROM_SECTOR_SIZE) {
     traceHandler("write_block_page(0x%X)(%i)\r\n", address, length);
+  } else {
+    traceHandler("write_file__page(0x%X)(%i)\r\n", address, length);
   }
   if (address + length > FAKE_PROM_SIZE) {
     writeTraceToFile();
@@ -93,6 +95,9 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   }
   for (i = 0; i < length; i++) {
     block[address + i] = data[i];
+  }
+  if (block[512] == 0xFF) {
+    return 0;
   }
   return 0;
 }

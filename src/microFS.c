@@ -44,8 +44,8 @@
 #define UFAT_FILE_CRC_CHECK 8
 
 #define UFAT_TABLE_SIZE(sectors) (sizeof(ufat_sector_t) * sectors)
-#define UFAT_BUFF_SIZE(sectors)                                                \
-  (sizeof(ufat_sector_t) * sectors + sizeof(ufat_table_t))
+/* #define UFAT_BUFF_SIZE(sectors)                                                \
+  (sizeof(ufat_sector_t) * sectors + sizeof(ufat_table_t))*/
 #define UFAT_FIRST_SECTOR(tableSectors) (tableSectors * UFAT_TABLE_COUNT)
 
 #ifndef UFAT_CRC
@@ -58,7 +58,7 @@ static uint32_t crc32(void *buf, int len, uint32_t Seed);
 #define UFAT_CRC crc32
 
 uint32_t crc32(void *buf, int len, uint32_t Seed) {
-  UFAT_TRACE(("CRC:0x%X|%i|0x%X\r\n", (uint64_t)buf, len, Seed));
+  UFAT_TRACE(("CRC:0x%p|%i|0x%X\r\n", buf, len, Seed));
   unsigned char *p;
   uint32_t crc = Seed;
   if (!crc32_table[1]) { /* if not already done, */
@@ -214,9 +214,6 @@ static int fileSearch(ufat_fs_t *fs, const char *fileName, uint32_t *sector,
       char name[UFAT_MAX_NAMELEN + 1];
       snprintf(name, UFAT_MAX_NAMELEN, "%s", fs->buff);
       UFAT_TRACE(("[%s]", name));
-      if (name[0] == 0xFF) {
-        break;
-      }
 #endif
       if (strncmp(fs->buff, fileName, UFAT_MAX_NAMELEN) == 0) {
         *sector = i;
@@ -249,14 +246,14 @@ static int commitChanges(ufat_fs_t *fs) {
   /* Copy 1 */
   UFAT_TRACE(("commitChanges:Program[0]\r\n"));
   if (fs->write_block_device(fs->addressStart, (uint8_t *)fs->fat,
-                             UFAT_BUFF_SIZE(fs->sectors))) {
+                             UFAT_TABLE_SIZE(fs->sectors))) {
     return UFAT_ERR_IO;
   }
   /* Copy 2 */
   UFAT_TRACE(("commitChanges:Program[1]\r\n"));
-  if (fs->write_block_device(fs->addressStart +
-                                 (fs->tableSectors * fs->sectorSize),
-                             (uint8_t *)fs->fat, UFAT_BUFF_SIZE(fs->sectors))) {
+  if (fs->write_block_device(
+          fs->addressStart + (fs->tableSectors * fs->sectorSize),
+          (uint8_t *)fs->fat, UFAT_TABLE_SIZE(fs->sectors))) {
     return UFAT_ERR_IO;
   }
   return UFAT_OK;
@@ -282,11 +279,14 @@ ufat_mount(ufat_fs_t *fs) {
       crc1 != crc2) {
     t2State = UFAT_TABLE_OLD;
   }
+  if (t1State == UFAT_ERR_IO || t2State == UFAT_ERR_IO) {
+    return UFAT_ERR_IO;
+  }
   if (t1State != UFAT_TABLE_GOOD && t2State != UFAT_TABLE_GOOD) {
     UFAT_TRACE(("ufat_mount:Volume empty\r\n"));
     UFAT_DEBUG(("Mounted volume is empty\r\n"));
     return UFAT_ERR_EMPTY;
-  }
+  } 
   scenario = t1State << 4 + t2State;
   switch (scenario) {
   case 0x00: /* |GOOD |GOOD | */
@@ -357,7 +357,8 @@ int ufat_format(ufat_fs_t *fs) {
   UFAT_ASSERT(fs->write_block_device);
   UFAT_TRACE(("ufat_format()\r\n"));
   /* check sizes */
-  UFAT_ASSERT(fs->tableSectors * fs->sectorSize <= UFAT_BUFF_SIZE(fs->sectors));
+  UFAT_ASSERT(fs->tableSectors * fs->sectorSize <=
+              UFAT_TABLE_SIZE(fs->sectors));
   for (i = 0; i < fs->sectors; i++) {
     if (i < UFAT_FIRST_SECTOR(fs->tableSectors)) {
       fs->fat->sector[i].next = 0;
@@ -374,14 +375,14 @@ int ufat_format(ufat_fs_t *fs) {
                UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t), 0xFFFFFFFF);
   /* Copy 1 */
   if (fs->write_block_device(fs->addressStart, (uint8_t *)fs->fat,
-                             UFAT_BUFF_SIZE(fs->sectors))) {
+                             UFAT_TABLE_SIZE(fs->sectors))) {
     UFAT_TRACE(("UFAT_ERR_IO\r\n"));
     return UFAT_ERR_IO;
   }
   /* Copy 2 */
   if (fs->write_block_device(fs->addressStart +
                                  (fs->tableSectors * fs->sectorSize),
-                             (uint8_t *)fs->fat, UFAT_BUFF_SIZE(fs->sectors))) {
+          (uint8_t *)fs->fat, UFAT_TABLE_SIZE(fs->sectors))) {
     UFAT_TRACE(("UFAT_ERR_IO\r\n"));
     return UFAT_ERR_IO;
   }
@@ -657,6 +658,8 @@ int ufat_fclose(ufat_fs_t *fs, ufat_FILE *stream) {
       }
       current = next;
       next = fs->fat->sector[next].next;
+      UFAT_DEBUG(("%i.", next));
+      UFAT_TRACE(("%i.", next));
       if (--limit < 1) {
         UFAT_TRACE(("UFAT_ERR_CORRUPT limit\r\n"));
         ret = UFAT_ERR_CORRUPT;
