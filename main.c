@@ -35,7 +35,7 @@ uint8_t block[FAKE_PROM_SIZE];
 #define TRACE_BUFFER_SIZE (10 * 1024 * 1024)
 
 // Testing
-uint32_t POWER_CYCLE_COUNT = 20000;
+uint32_t POWER_CYCLE_COUNT = 50000;
 uint32_t takeDownPeriod = 0;
 uint32_t takeDownTest = 0;
 uint32_t takeDownFlags = 0;
@@ -67,9 +67,7 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   if (address <
       FAKE_PROM_TABLE_SECTORS * UFAT_TABLE_COUNT * FAKE_PROM_SECTOR_SIZE) {
     traceHandler("write_block_page(0x%X)(%i)\r\n", address, length);
-  } else {
-    traceHandler("write_file__page(0x%X)(%i)\r\n", address, length);
-  }
+  } 
   if (address + length > FAKE_PROM_SIZE) {
     writeTraceToFile();
     UFAT_ASSERT(0);
@@ -291,7 +289,7 @@ int PowerStressTest(ufat_fs_t *fs) {
     switch (getRand() % 3) {
     case 0:
       takeDownFlags = TAKE_DOWN_WRITE;
-      takeDownPeriod = 1 + (getRand() % 1500);
+      takeDownPeriod = 1 + (getRand() % 500);
       break;
     case 1:
       takeDownFlags = TAKE_DOWN_WRITE | TAKE_DOWN_READ;
@@ -300,7 +298,7 @@ int PowerStressTest(ufat_fs_t *fs) {
     case 2:
     default:
       takeDownFlags = TAKE_DOWN_WRITE;
-      takeDownPeriod = 1 + (getRand() % 2500);
+      takeDownPeriod = 1 + (getRand() % 1000);
       break;
     }
 
@@ -384,7 +382,7 @@ int PowerStressTest(ufat_fs_t *fs) {
 
     while (res == 0) {
       // Save and stuff until it dies
-      sprintf(buf, "test%i.txt", i++ % 3);
+      sprintf(buf, "test%i.txt", i++ % 5);
       res = ufat_fopen(fs, buf, "w", &f);
       if (res == UFAT_ERR_FILE_NOT_FOUND) {
         if (ufat_errno(fs) != UFAT_ERR_IO) {
@@ -398,7 +396,7 @@ int PowerStressTest(ufat_fs_t *fs) {
       if (testLength == 0) {
         testLength = 1;
       }
-      testLength &= 0x3;
+      testLength &= 0x31;
       j = testLength;
       while (j) {
         tl = test[j]; // Some random test length
@@ -691,7 +689,7 @@ int main(int argv, char **argc) {
                    .write_block_device = write_block_page,
                    .read_block_device = read_block_device};
 
-    printf("norFAT test jig 1.00, norFAT Version %s\r\n", UFAT_VERSION);
+    printf("uFAT test jig 1.00, uFAT Version %s\r\n", UFAT_VERSION);
   if (argv > 1) {
     POWER_CYCLE_COUNT = strtol(argc[1], NULL, 10);
     printf("Testing cycles set to %i\r\n", POWER_CYCLE_COUNT);
