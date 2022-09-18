@@ -35,7 +35,7 @@ uint8_t block[FAKE_PROM_SIZE];
 #define TRACE_BUFFER_SIZE (10 * 1024 * 1024)
 
 // Testing
-uint32_t POWER_CYCLE_COUNT = 2000;
+uint32_t POWER_CYCLE_COUNT = 20000;
 uint32_t takeDownPeriod = 0;
 uint32_t takeDownTest = 0;
 uint32_t takeDownFlags = 0;

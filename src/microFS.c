@@ -232,12 +232,34 @@ static int fileSearch(ufat_fs_t *fs, const char *fileName, uint32_t *sector,
   return foundFile;
 }
 
+static int someChecks(int id) {
+  extern uint8_t block[0x2000];
+  ufat_table_t *fat1 = (ufat_table_t *)block;
+  ufat_table_t *fat2 = (ufat_table_t *)&block[256];
+  uint32_t crcRes1, crcRes2;
+  crcRes1 = UFAT_CRC(fat1, 256, 0xFFFFFFFF);
+  crcRes2 = UFAT_CRC(fat2, 256, 0xFFFFFFFF);
+  if (crcRes1 != fat1->tableCrc) {
+    UFAT_TRACE(("someChecks:[%i]Fail[0] 0x%X != 0x%X\r\n", id, fat1->tableCrc, crcRes1));
+  } else {
+    UFAT_TRACE(("someChecks:[%i]Passed[0] 0x%X != 0x%X\r\n", id, fat1->tableCrc,
+                crcRes1));
+  }
+  if (crcRes2 != fat2->tableCrc) {
+    UFAT_TRACE(("someChecks:[%i]Fail[1] 0x%X != 0x%X\r\n", id, fat2->tableCrc,
+                crcRes2));
+  } else {
+    UFAT_TRACE(("someChecks:[%i]Passed[1] 0x%X != 0x%X\r\n", id, fat2->tableCrc,
+                crcRes2));
+  }
+}
+
 static int commitChanges(ufat_fs_t *fs) {
   UFAT_TRACE(("commitChanges..\r\n"));
   if (fs->lastError == UFAT_ERR_IO) {
     return UFAT_ERR_IO;
   }
-
+  someChecks(0);
   fs->fat->tableCrc =
       UFAT_CRC(fs->fat->sector,
                UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t), 0xFFFFFFFF);
@@ -247,15 +269,19 @@ static int commitChanges(ufat_fs_t *fs) {
   UFAT_TRACE(("commitChanges:Program[0]\r\n"));
   if (fs->write_block_device(fs->addressStart, (uint8_t *)fs->fat,
                              UFAT_TABLE_SIZE(fs->sectors))) {
+    someChecks(1);
     return UFAT_ERR_IO;
   }
+  someChecks(2);
   /* Copy 2 */
   UFAT_TRACE(("commitChanges:Program[1]\r\n"));
   if (fs->write_block_device(
           fs->addressStart + (fs->tableSectors * fs->sectorSize),
           (uint8_t *)fs->fat, UFAT_TABLE_SIZE(fs->sectors))) {
+    someChecks(3);
     return UFAT_ERR_IO;
   }
+  someChecks(4);
   return UFAT_OK;
 }
 
