@@ -35,7 +35,7 @@ uint8_t block[FAKE_PROM_SIZE];
 #define TRACE_BUFFER_SIZE (10 * 1024 * 1024)
 
 // Testing
-uint32_t POWER_CYCLE_COUNT = 100000;
+uint32_t POWER_CYCLE_COUNT = 1000;
 uint32_t takeDownPeriod = 0;
 uint32_t takeDownTest = 0;
 uint32_t takeDownFlags = 0;
@@ -170,16 +170,16 @@ int PowerFailOnWriteTest(ufat_fs_t *fs) {
   uint32_t i, j, tl, testLength, powered;
   uint32_t rnd = 0;
   int32_t res = 0;
-  uint8_t *validate = malloc(0x10000);
-  uint8_t *newwrite = malloc(0x10000);
-  uint8_t *compare = malloc(0x10000);
+  uint8_t *validate = malloc(0x1000);
+  uint8_t *newwrite = malloc(0x1000);
+  uint8_t *compare = malloc(0x1000);
   uint8_t buf[128];
   assert(compare);
   assert(validate);
   assert(newwrite);
   srand((unsigned)time(NULL));
   j = 0;
-  for (i = 0; i < 0x10000; i++) {
+  for (i = 0; i < 0x1000; i++) {
     validate[i] = (uint8_t)getRand();
     newwrite[i] = (uint8_t)getRand();
   }
@@ -202,7 +202,7 @@ int PowerFailOnWriteTest(ufat_fs_t *fs) {
     goto finalize;
   }
   res = ufat_fopen(fs, "validate.bin", "w", &f);
-  res = ufat_fwrite(fs, newwrite, 1, 0x8000, &f);
+  res = ufat_fwrite(fs, newwrite, 1, 0x100, &f);
   // Power failure here.
   res = ufat_mount(fs);
   res = ufat_fopen(fs, "validate.bin", "r", &f);
@@ -516,18 +516,18 @@ int fillupTest(ufat_fs_t *fs) {
 }
 
 int randomWriteLengths(ufat_fs_t *fs) {
-  int32_t testCount = 1000;
+  int32_t testCount = 10000;
   uint32_t i, j, tl, testLength;
   int32_t res = 0;
-  uint8_t *test = malloc(0x10000);
-  uint8_t *compare = malloc(0x10000);
+  uint8_t *test = malloc(0x1000);
+  uint8_t *compare = malloc(0x1000);
   uint8_t buf[128];
   ufat_FILE f;
   assert(test);
   assert(compare);
   srand((unsigned)time(NULL));
   j = 0;
-  for (i = 0; i < 0x10000; i++) {
+  for (i = 0; i < 0x1000; i++) {
     test[i] = (uint8_t)getRand();
     ;
   }
@@ -545,7 +545,7 @@ int randomWriteLengths(ufat_fs_t *fs) {
       break;
     }
     testLength = (uint8_t)getRand();
-    testLength %= 0xFFFF;
+    testLength %= 0xFF;
     if (testLength == 0) {
       testLength = 1;
     }
@@ -570,9 +570,23 @@ int randomWriteLengths(ufat_fs_t *fs) {
     }
 
     res = ufat_fclose(fs, &f);
-    if (testCount-- >= 0) {
+    if (testCount-- <= 0) {
       break;
     }
+
+    if (testCount % 100 == 0) {
+      printf(".");
+    }
+
+    if (testCount % 1000 == 0) {
+      printf("%05i", testCount);
+    }
+
+    if (testCount % 5000 == 0) {
+      printf("\r\n");
+    }
+
+
     res = ufat_fopen(fs, buf, "r", &f);
     if (res == UFAT_ERR_FILE_NOT_FOUND) {
       res = UFAT_ERR_NULL;
