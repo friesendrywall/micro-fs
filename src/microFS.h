@@ -30,7 +30,7 @@
 #define UFAT_VERSION "1.0"
 
 #define UFAT_MAX_SECTORS (0xFFF)
-#define UFAT_MAX_NAMELEN (14)
+#define UFAT_MAX_NAMELEN (18)
 #define UFAT_TABLE_COUNT 2
 
 enum {
@@ -43,7 +43,8 @@ enum {
   UFAT_ERR_FULL,
   UFAT_ERR_UNSUPPORTED,
   UFAT_ERR_FILECRC,
-  UFAT_ERR_NULL
+  UFAT_ERR_NULL,
+  UFAT_ERR_NAME_LEN
 };
 
 typedef struct {
@@ -70,11 +71,11 @@ typedef struct {
   /* Number of sectors per table */
   const uint32_t tableSectors;
   /* buff is used for all IO, so if driver uses DMA, allocate accordingly 
-   * Must be allocated to sector bytes * tableSectors */
+   * Must be pre-allocated to (sector bytes * tableSectors) */
   uint8_t* buff;
   /* fat is used to store the working copy of the table
-   * Must be allocated to sector bytes * tableSectors */
-  ufat_table_t *fat; // User allocated to sectorSize
+   * Must be pre-allocated to (sector bytes * tableSectors) */
+  ufat_table_t *fat;
   uint32_t (*read_block_device)(uint32_t address, uint8_t *data, uint32_t len);
   uint32_t (*write_block_device)(uint32_t address, uint8_t *data,
                                  uint32_t length);
@@ -84,25 +85,12 @@ typedef struct {
 
 } ufat_fs_t;
 
-#if 1
-
-typedef struct {
-  uint8_t name[UFAT_MAX_NAMELEN];
-  uint16_t len;
-  uint32_t timeStamp;
-  uint32_t crc;
-} ufat_file_t;
-
-#else
-
 typedef struct {
   uint32_t crc;
   uint32_t timeStamp;
   uint16_t len;
   char name[UFAT_MAX_NAMELEN];
 } ufat_file_t;
-
-#endif
 
 typedef struct {
   uint32_t startSector;
@@ -112,10 +100,11 @@ typedef struct {
   int32_t currentSector;
   uint32_t rwPosInSector;
   uint32_t openFlags;
-  int lastError;
   uint32_t zeroCopy : 1;
   uint32_t error : 1;
+  uint32_t opened : 1;
   uint32_t crcValidate;
+  int lastError;
 } ufat_FILE;
 
 int ufat_mount(ufat_fs_t *fs);

@@ -1,3 +1,6 @@
 .vs/
 x64/
 microFS.vcxproj.user
+Debug/
+ufat_dump.bin
+ufat_trace.txt

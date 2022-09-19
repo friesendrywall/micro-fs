@@ -44,45 +44,7 @@
 #define UFAT_FILE_CRC_CHECK 8
 
 #define UFAT_TABLE_SIZE(sectors) (sizeof(ufat_sector_t) * sectors)
-/* #define UFAT_BUFF_SIZE(sectors)                                                \
-  (sizeof(ufat_sector_t) * sectors + sizeof(ufat_table_t))*/
 #define UFAT_FIRST_SECTOR(tableSectors) (tableSectors * UFAT_TABLE_COUNT)
-
-#ifdef UFAT_TRACE
-static char* traceName(char* name) {
-  static char namestr[UFAT_MAX_NAMELEN + 1];
-  snprintf(namestr, UFAT_MAX_NAMELEN, "%s", name);
-  return namestr;
-}
-#endif
-
-#if 1
-#define someChecks(x, y)
-#else
-static int someChecks(ufat_fs_t *fs, int id) {
-  extern uint8_t block[0x2000];
-  ufat_table_t *fat1 = (ufat_table_t *)block;
-  ufat_table_t *fat2 = (ufat_table_t *)&block[256];
-  uint32_t crcRes1, crcRes2;
-  uint32_t tlen = UFAT_TABLE_SIZE(fs->sectors) - sizeof(uint32_t);
-  crcRes1 = UFAT_CRC(&((uint8_t *)fat1->sector)[4], tlen, 0xFFFFFFFF);
-  crcRes2 = UFAT_CRC(&((uint8_t *)fat2->sector)[4], tlen, 0xFFFFFFFF);
-  if (crcRes1 != fat1->tableCrc) {
-    UFAT_TRACE(("someChecks:[%i]Fail  [0] 0x%X != 0x%X\r\n", id, fat1->tableCrc,
-                crcRes1));
-  } else {
-    UFAT_TRACE(("someChecks:[%i]Passed[0] 0x%X == 0x%X\r\n", id, fat1->tableCrc,
-                crcRes1));
-  }
-  if (crcRes2 != fat2->tableCrc) {
-    UFAT_TRACE(("someChecks:[%i]Fail  [1] 0x%X != 0x%X\r\n", id, fat2->tableCrc,
-                crcRes2));
-  } else {
-    UFAT_TRACE(("someChecks:[%i]Passed[1] 0x%X == 0x%X\r\n", id, fat2->tableCrc,
-                crcRes2));
-  }
-}
-#endif
 
 #ifndef UFAT_CRC
 /* crc routines written by unknown public source */
@@ -187,7 +149,6 @@ static int32_t validateTable(ufat_fs_t *fs, uint32_t tableIndex,
   int32_t res = UFAT_TABLE_GOOD;
   uint32_t crcRes;
   ufat_table_t *fat = (ufat_table_t *)fs->buff;
-  someChecks(fs, 300);
   UFAT_TRACE(("validateTable(%i)\r\n", tableIndex));
   if (fs->read_block_device(
           fs->addressStart + ((fs->sectorSize * fs->tableSectors) * tableIndex),
@@ -241,6 +202,7 @@ static int fileSearch(ufat_fs_t *fs, const char *fileName, uint32_t *sector,
   uint32_t i;
   int foundFile = UFAT_ERR_FILE_NOT_FOUND;
   *sector = UFAT_INVALID_SECTOR;
+  ufat_file_t *fhbuff = (ufat_file_t *)fs->buff;
   UFAT_TRACE(("fileSearch(%s)..", fileName));
   for (i = UFAT_FIRST_SECTOR(fs->tableSectors); i < fs->sectors; i++) {
     if (fs->fat->sector[i].sof) {
@@ -250,12 +212,8 @@ static int fileSearch(ufat_fs_t *fs, const char *fileName, uint32_t *sector,
         UFAT_TRACE(("UFAT_ERR_IO\r\n"));
         return UFAT_ERR_IO;
       }
-#ifdef UFAT_TRACE
-      char name[UFAT_MAX_NAMELEN + 1];
-      snprintf(name, UFAT_MAX_NAMELEN, "%s", fs->buff);
-      UFAT_TRACE(("[%s]", name));
-#endif
-      if (strncmp(fs->buff, fileName, UFAT_MAX_NAMELEN) == 0) {
+      UFAT_TRACE(("[%s]", fhbuff->name));
+      if (strncmp(fhbuff->name, fileName, UFAT_MAX_NAMELEN) == 0) {
         *sector = i;
         if (fh) {
           memcpy(fh, fs->buff, sizeof(ufat_file_t));
@@ -279,26 +237,21 @@ static int commitChanges(ufat_fs_t *fs) {
     return UFAT_ERR_IO;
   }
   fs->fat->tableCrc = calcTableCRC(fs, fs->fat);
-  someChecks(fs, 0);
   // validateTable(fs, 0, &i);
   UFAT_TRACE(("TESTCRC: 0x%X\r\n", fs->fat->tableCrc));
   /* Copy 1 */
   UFAT_TRACE(("commitChanges:Program[0]\r\n"));
   if (fs->write_block_device(fs->addressStart, (uint8_t *)fs->fat,
                              UFAT_TABLE_SIZE(fs->sectors))) {
-    someChecks(fs, 1);
     return UFAT_ERR_IO;
   }
-  someChecks(fs, 2);
   /* Copy 2 */
   UFAT_TRACE(("commitChanges:Program[1]\r\n"));
   if (fs->write_block_device(
           fs->addressStart + (fs->tableSectors * fs->sectorSize),
           (uint8_t *)fs->fat, UFAT_TABLE_SIZE(fs->sectors))) {
-    someChecks(fs, 3);
     return UFAT_ERR_IO;
   }
-  someChecks(fs, 4);
   return UFAT_OK;
 }
 
@@ -387,7 +340,6 @@ ufat_mount(ufat_fs_t *fs) {
   fs->volumeMounted = 1;
   UFAT_TRACE(("ufat_mount:mounted 0x%02X 0x%02X\r\n", t1State, t2State));
   UFAT_INFO(("Volume is mounted\r\n"));
-  someChecks(fs, 1000);
   return 0;
 }
 
@@ -447,7 +399,6 @@ int ufat_fsinfo(ufat_fs_t *fs, char *buff, int32_t maxLen) {
   struct tm ts;
   time_t now;
   char buf[32];
-  char name[UFAT_MAX_NAMELEN + 1];
   len = UFAT_INFO_SNPRINT(
       (buff, maxLen,
        "\r\nuFAT Version %s"
@@ -467,9 +418,8 @@ int ufat_fsinfo(ufat_fs_t *fs, char *buff, int32_t maxLen) {
       now = (time_t)f.timeStamp;
       ts = *localtime(&now);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &ts);
-      snprintf(name, UFAT_MAX_NAMELEN + 1, "%s", f.name);
       len = UFAT_INFO_SNPRINT((buff, maxLen > 0 ? maxLen : 0, "%s  %9i %s\r\n",
-                               buf, (int)f.len, name));
+                               buf, (int)f.len, f.name));
       maxLen -= len;
       buff += len;
       bytesUsed += f.len;
@@ -520,6 +470,11 @@ int ufat_fopen(ufat_fs_t *fs, const char *filename, const char *mode,
     return UFAT_ERR_UNSUPPORTED;
   }
   memset(file, 0, sizeof(ufat_file_t));
+  if (strlen(filename) >= UFAT_MAX_NAMELEN - 1) {
+    file->lastError = UFAT_ERR_NAME_LEN;
+    file->opened = 0;
+    return UFAT_ERR_NAME_LEN;
+  }
   retVal = fileSearch(fs, filename, &sector, &file->fh, NULL);
   if (flags & UFAT_FLAG_READ) {
     if (retVal == UFAT_OK) {
@@ -531,6 +486,7 @@ int ufat_fopen(ufat_fs_t *fs, const char *filename, const char *mode,
         file->zeroCopy = 1;
       }
       file->crcValidate = 0xFFFFFFFF;
+      file->opened = 1;
       UFAT_TRACE(("ufat_fopen:file opened for reading\r\n"));
       UFAT_DEBUG(("FILE %s opened for reading\r\n", filename));
       return UFAT_OK;
@@ -560,10 +516,10 @@ int ufat_fopen(ufat_fs_t *fs, const char *filename, const char *mode,
       UFAT_TRACE(("ufat_fopen:sector[%i] marked to remove\r\n", sector));
     } else {
       memset(&file->fh, 0, sizeof(ufat_file_t));
-      uint32_t nameLen = strlen(filename);
-      nameLen = nameLen + 1 < UFAT_MAX_NAMELEN ? nameLen : UFAT_MAX_NAMELEN;
-      strncpy(file->fh.name, filename, nameLen);
+      strncpy(file->fh.name, filename, UFAT_MAX_NAMELEN);
+      file->fh.name[UFAT_MAX_NAMELEN - 1] = 0;
     }
+    file->opened = 1;
     UFAT_TRACE(("ufat_fopen:file opened for writing\r\n"));
     UFAT_DEBUG(("FILE %s opened for writing\r\n", filename));
     return UFAT_OK;
@@ -586,6 +542,9 @@ int ufat_fclose(ufat_fs_t *fs, ufat_FILE *stream) {
   if (fs->lastError == UFAT_ERR_IO) {
     ret = UFAT_ERR_IO;
     goto finalize;
+  }
+  if (!stream->opened) {
+    return stream->lastError;
   }
 
   if (stream->error && stream->openFlags & UFAT_FLAG_WRITE) {
@@ -712,22 +671,19 @@ int ufat_fclose(ufat_fs_t *fs, ufat_FILE *stream) {
     ret = commitChanges(fs);
     if (ret) {
       UFAT_DEBUG(("FILE %s commit failed\r\n", stream->fh.name));
-      UFAT_TRACE(
-          ("ufat_fclose(%s):commit failed %s\r\n", 
-              traceName(stream->fh.name),
-              ufat_errstr(ret)));
+      UFAT_TRACE(("ufat_fclose(%s):commit failed %s\r\n", stream->fh.name,
+                  ufat_errstr(ret)));
     } else {
       UFAT_DEBUG(("FILE %s committed\r\n", stream->fh.name));
-      UFAT_TRACE(("ufat_fclose(%s):committed\r\n", traceName(stream->fh.name)));
+      UFAT_TRACE(("ufat_fclose(%s):committed\r\n", stream->fh.name));
     }
   } else {
     ret = UFAT_OK;
   }
 finalize:
   UFAT_DEBUG(("FILE %s closed\r\n", stream->fh.name));
-  UFAT_TRACE(("ufat_fclose(%s):finalize %s\r\n", 
-      traceName(stream->fh.name), ufat_errstr(ret)));
-  someChecks(fs, 200);
+  UFAT_TRACE(
+      ("ufat_fclose(%s):finalize %s\r\n", stream->fh.name, ufat_errstr(ret)));
   return ret;
 }
 
@@ -749,7 +705,9 @@ size_t ufat_fwrite(ufat_fs_t *fs, const void *ptr, size_t size, size_t count,
   if (fs->lastError == UFAT_ERR_IO) {
     return 0;
   }
-  someChecks(fs, 100);
+  if (!stream->opened) {
+    return stream->lastError;
+  }
   if (stream->currentSector == -1) {
     stream->currentSector = findEmptySector(fs);
     if (stream->currentSector == UFAT_ERR_FULL) {
@@ -809,10 +767,8 @@ size_t ufat_fwrite(ufat_fs_t *fs, const void *ptr, size_t size, size_t count,
                                DataLengthToWrite)) {
       fs->lastError = stream->lastError = UFAT_ERR_IO;
       UFAT_TRACE(("ufat_fwrite:UFAT_ERR_IO\r\n"));
-      someChecks(fs, 101);
       return UFAT_ERR_IO;
     }
-    someChecks(fs, 102);
     stream->fh.crc = UFAT_CRC(out, DataLengthToWrite, stream->fh.crc);
     stream->position += DataLengthToWrite;
     stream->rwPosInSector += DataLengthToWrite;
@@ -837,9 +793,12 @@ size_t ufat_fread(ufat_fs_t *fs, void *ptr, size_t size, size_t count,
   uint8_t *in = (uint8_t *)ptr;
   uint32_t len = size * count;
   UFAT_TRACE(("ufat_fread(%i)\r\n", len));
-  /* Protect fs state */
+  /* Protect fs state (mainly in test env) */
   if (fs->lastError == UFAT_ERR_IO) {
     return 0;
+  }
+  if (!stream->opened) {
+    return stream->lastError;
   }
   while (len) {
     readable = fs->sectorSize - stream->rwPosInSector;
@@ -860,8 +819,6 @@ size_t ufat_fread(ufat_fs_t *fs, void *ptr, size_t size, size_t count,
 
     rlen = len > readable ? readable : len;
     rlen = rlen > remaining ? remaining : rlen;
-    // TODO: only allow reads up to real len
-    // uint32_t rawlen = wlen;
     rawAdr = (stream->currentSector * fs->sectorSize) + stream->rwPosInSector;
     if (stream->zeroCopy) {
       // Requires user implemented cache free operation
@@ -1008,6 +965,8 @@ char *ufat_errstr(int err) {
     return "FILE CRC";
   case UFAT_ERR_NULL:
     return "NULL";
+  case UFAT_ERR_NAME_LEN:
+    return "NAME_LEN";
   default:
     snprintf(errstr, sizeof(errstr), "%i", err);
     return errstr;
