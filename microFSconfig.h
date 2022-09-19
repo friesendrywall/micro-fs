@@ -26,6 +26,7 @@
 #define MICRO_FS_CONFIG_H
 
 #include <assert.h>
+#include "Unity.h"
 
 #define UFAT_DEBUG(x) // printf x
 #define UFAT_ERROR(x) printf x
@@ -35,10 +36,12 @@
 #define UFAT_RAND rand
 
 int traceHandler(const char *format, ...);
-#define UFAT_TRACE(x) traceHandler x
+#define UFAT_TRACE(x) // traceHandler x
+
+#define UFAT_ASSERT TEST_ASSERT
 
 void assertHandler(char *file, int line);
-#define UFAT_ASSERT(expr)                                                    \
+#define UFAT_ASSERTs(expr)                                                    \
   if (!(expr))                                                                 \
   assertHandler(__FILE__, __LINE__)
 

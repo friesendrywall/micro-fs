@@ -4,3 +4,4 @@ microFS.vcxproj.user
 Debug/
 ufat_dump.bin
 ufat_trace.txt
+all_tests.exe

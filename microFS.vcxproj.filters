@@ -1,20 +1,48 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="main.c" />
     <ClCompile Include="src\microFS.c">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="test_runners\all_tests.c">
+      <Filter>test_runners</Filter>
+    </ClCompile>
+    <ClCompile Include="test_runners\TestPowerStress_Runner.c">
+      <Filter>test_runners</Filter>
+    </ClCompile>
+    <ClCompile Include="main.c" />
+    <ClCompile Include="Unity\extras\fixture\src\unity_fixture.c" />
+    <ClCompile Include="Unity\extras\fixture\test\main\AllTests.c" />
+    <ClCompile Include="Unity\extras\fixture\test\template_fixture_tests.c" />
+    <ClCompile Include="Unity\extras\fixture\test\unity_fixture_Test.c" />
+    <ClCompile Include="Unity\extras\fixture\test\unity_fixture_TestRunner.c" />
+    <ClCompile Include="Unity\extras\memory\src\unity_memory.c" />
+    <ClCompile Include="Unity\extras\memory\test\unity_memory_Test.c" />
+    <ClCompile Include="Unity\extras\memory\test\unity_memory_TestRunner.c" />
+    <ClCompile Include="Unity\extras\memory\test\unity_output_Spy.c" />
+    <ClCompile Include="Unity\src\unity.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="microFSconfig.h" />
     <ClInclude Include="src\microFS.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="Unity\extras\fixture\src\unity_fixture.h" />
+    <ClInclude Include="Unity\extras\fixture\src\unity_fixture_internals.h" />
+    <ClInclude Include="Unity\extras\memory\src\unity_memory.h" />
+    <ClInclude Include="Unity\extras\memory\test\unity_output_Spy.h" />
+    <ClInclude Include="Unity\src\unity.h" />
+    <ClInclude Include="Unity\src\unity_internals.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
       <UniqueIdentifier>{a21a0649-9cb0-4110-8ee4-b5ceb1d62957}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test_runners">
+      <UniqueIdentifier>{228f8fdb-0017-4158-8173-76f52314d5d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Unity">
+      <UniqueIdentifier>{4104cf85-5a00-4f36-b236-3be5dc42909c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
