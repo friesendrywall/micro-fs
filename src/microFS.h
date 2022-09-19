@@ -55,10 +55,9 @@ typedef struct {
   uint16_t written : 1;
 } ufat_sector_t;
 
-typedef struct {
-  uint32_t tableCrc; // 2 sectors space or what?
-  // uint32_t formatID;
-  ufat_sector_t sector[]; // Bug here, >= 127 is into next
+typedef union {
+  uint32_t tableCrc;
+  ufat_sector_t sector[];
 } ufat_table_t; /* must equal sector size */
 
 typedef struct {
@@ -70,18 +69,22 @@ typedef struct {
   const uint32_t sectorSize;
   /* Number of sectors per table */
   const uint32_t tableSectors;
-  /* buff is used for all IO, so if driver uses DMA, allocate accordingly */
-  uint8_t *buff; // User allocated to sectorSize
-  /* fat is used to store the working copy of the table */
+  /* buff is used for all IO, so if driver uses DMA, allocate accordingly 
+   * Must be allocated to sector bytes * tableSectors */
+  uint8_t* buff;
+  /* fat is used to store the working copy of the table
+   * Must be allocated to sector bytes * tableSectors */
   ufat_table_t *fat; // User allocated to sectorSize
   uint32_t (*read_block_device)(uint32_t address, uint8_t *data, uint32_t len);
   uint32_t (*write_block_device)(uint32_t address, uint8_t *data,
                                  uint32_t length);
-  // Non userspace stuff
+  /* Internal use */
   uint32_t volumeMounted;
   int lastError;
 
 } ufat_fs_t;
+
+#if 1
 
 typedef struct {
   uint8_t name[UFAT_MAX_NAMELEN];
@@ -89,6 +92,17 @@ typedef struct {
   uint32_t timeStamp;
   uint32_t crc;
 } ufat_file_t;
+
+#else
+
+typedef struct {
+  uint32_t crc;
+  uint32_t timeStamp;
+  uint16_t len;
+  char name[UFAT_MAX_NAMELEN];
+} ufat_file_t;
+
+#endif
 
 typedef struct {
   uint32_t startSector;

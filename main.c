@@ -45,7 +45,7 @@ char *traceBuffer = NULL;
 uint32_t traceLocation = 0;
 
 uint32_t read_block_device(uint32_t address, uint8_t *data, uint32_t len) {
-  if (address + len >= FAKE_PROM_SIZE) {
+  if (address + len > FAKE_PROM_SIZE) {
     UFAT_ASSERT(0);
   }
   if (takeDownTest && (takeDownFlags & TAKE_DOWN_READ)) {
@@ -64,10 +64,12 @@ uint32_t read_block_device(uint32_t address, uint8_t *data, uint32_t len) {
 
 uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   uint32_t i;
-  if (address <
-      FAKE_PROM_TABLE_SECTORS * UFAT_TABLE_COUNT * FAKE_PROM_SECTOR_SIZE) {
-    traceHandler("write_block_page(0x%X)(%i)\r\n", address, length);
-  } 
+  if (address < FAKE_PROM_TABLE_SECTORS * UFAT_TABLE_COUNT *
+                    FAKE_PROM_SECTOR_SIZE * sizeof(ufat_sector_t)) {
+    traceHandler("write_fat   (0x%X)(%i)\r\n", address, length);
+  } else {
+    traceHandler("write_sector(0x%X)(%i)\r\n", address, length);
+  }
   if (address + length > FAKE_PROM_SIZE) {
     writeTraceToFile();
     UFAT_ASSERT(0);
@@ -83,10 +85,12 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
         for (i = 0; i < length; i++) {
           block[address + i] &= (rand() % 0xFF);
         }
+        traceHandler("write_block_page rand!\r\n");
       } else {
         for (i = 0; i < failLen; i++) {
           block[address + i] = data[i];
         }
+        traceHandler("write_block_page failLen %i!\r\n", failLen);
       }
       return 1;
     }
@@ -94,9 +98,7 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   for (i = 0; i < length; i++) {
     block[address + i] = data[i];
   }
-  if (block[512] == 0xFF) {
-    return 0;
-  }
+  traceHandler("write_block_page success\r\n");
   return 0;
 }
 

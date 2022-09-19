@@ -56,6 +56,34 @@ static char* traceName(char* name) {
 }
 #endif
 
+#if 1
+#define someChecks(x, y)
+#else
+static int someChecks(ufat_fs_t *fs, int id) {
+  extern uint8_t block[0x2000];
+  ufat_table_t *fat1 = (ufat_table_t *)block;
+  ufat_table_t *fat2 = (ufat_table_t *)&block[256];
+  uint32_t crcRes1, crcRes2;
+  uint32_t tlen = UFAT_TABLE_SIZE(fs->sectors) - sizeof(uint32_t);
+  crcRes1 = UFAT_CRC(&((uint8_t *)fat1->sector)[4], tlen, 0xFFFFFFFF);
+  crcRes2 = UFAT_CRC(&((uint8_t *)fat2->sector)[4], tlen, 0xFFFFFFFF);
+  if (crcRes1 != fat1->tableCrc) {
+    UFAT_TRACE(("someChecks:[%i]Fail  [0] 0x%X != 0x%X\r\n", id, fat1->tableCrc,
+                crcRes1));
+  } else {
+    UFAT_TRACE(("someChecks:[%i]Passed[0] 0x%X == 0x%X\r\n", id, fat1->tableCrc,
+                crcRes1));
+  }
+  if (crcRes2 != fat2->tableCrc) {
+    UFAT_TRACE(("someChecks:[%i]Fail  [1] 0x%X != 0x%X\r\n", id, fat2->tableCrc,
+                crcRes2));
+  } else {
+    UFAT_TRACE(("someChecks:[%i]Passed[1] 0x%X == 0x%X\r\n", id, fat2->tableCrc,
+                crcRes2));
+  }
+}
+#endif
+
 #ifndef UFAT_CRC
 /* crc routines written by unknown public source */
 static uint32_t crc32_table[256];
@@ -90,6 +118,12 @@ void init_crc32(void) {
 }
 
 #endif
+
+static uint32_t calcTableCRC(ufat_fs_t *fs, ufat_table_t *fat_table) {
+  /* Offset CRC sizeof(uint32_t) */
+  return UFAT_CRC(&((uint8_t *)fat_table)[sizeof(uint32_t)],
+                  UFAT_TABLE_SIZE(fs->sectors) - sizeof(uint32_t), 0xFFFFFFFF);
+}
 
 static int32_t scanTable(ufat_fs_t *fs, ufat_table_t *fat) {
   uint32_t i;
@@ -135,12 +169,10 @@ static uint32_t loadTable(ufat_fs_t *fs, uint32_t tableIndex) {
     UFAT_TRACE(("UFAT_ERR_IO\r\n"));
     return UFAT_ERR_IO;
   }
-  crcRes =
-      UFAT_CRC(fs->fat->sector,
-               UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t), 0xFFFFFFFF);
+  crcRes = calcTableCRC(fs, fs->fat);
   if (crcRes != fs->fat->tableCrc) {
-    UFAT_TRACE(("loadTable:failure 0x%X != 0x%X\r\n", 
-        crcRes, fs->fat->tableCrc));
+    UFAT_TRACE(
+        ("loadTable:failure 0x%X != 0x%X\r\n", crcRes, fs->fat->tableCrc));
     UFAT_ERROR(("Table %i crc failure\r\n", tableIndex));
     return UFAT_ERR_CRC;
   }
@@ -149,11 +181,13 @@ static uint32_t loadTable(ufat_fs_t *fs, uint32_t tableIndex) {
   return UFAT_OK;
 }
 
+
 static int32_t validateTable(ufat_fs_t *fs, uint32_t tableIndex,
                              uint32_t *crc) {
   int32_t res = UFAT_TABLE_GOOD;
   uint32_t crcRes;
   ufat_table_t *fat = (ufat_table_t *)fs->buff;
+  someChecks(fs, 300);
   UFAT_TRACE(("validateTable(%i)\r\n", tableIndex));
   if (fs->read_block_device(
           fs->addressStart + ((fs->sectorSize * fs->tableSectors) * tableIndex),
@@ -163,11 +197,9 @@ static int32_t validateTable(ufat_fs_t *fs, uint32_t tableIndex,
     return UFAT_ERR_IO;
   }
 
-  crcRes =
-      UFAT_CRC(fat->sector, UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t),
-               0xFFFFFFFF);
+  crcRes = calcTableCRC(fs, fat);
   if (crcRes != fat->tableCrc) {
-    UFAT_TRACE(("validateTable:failure 0x%X != 0x%X (%i)\r\n", crcRes,
+    UFAT_TRACE(("validateTable:failure actual 0x%X != stored 0x%X (%i)\r\n", crcRes,
                   fat->tableCrc, UFAT_TABLE_SIZE(fs->sectors)));
     return UFAT_TABLE_CRC;
   }
@@ -237,30 +269,8 @@ static int fileSearch(ufat_fs_t *fs, const char *fileName, uint32_t *sector,
       }
     }
   }
+  UFAT_TRACE(("\r\n"));
   return foundFile;
-}
-
-static int someChecks(ufat_fs_t* fs, int id) {
-  extern uint8_t block[0x2000];
-  ufat_table_t *fat1 = (ufat_table_t *)block;
-  ufat_table_t *fat2 = (ufat_table_t *)&block[256];
-  uint32_t crcRes1, crcRes2;
-  uint32_t tlen = UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t);
-  crcRes1 = UFAT_CRC(fat1->sector, tlen, 0xFFFFFFFF);
-  crcRes2 = UFAT_CRC(fat2->sector, tlen, 0xFFFFFFFF);
-  if (crcRes1 != fat1->tableCrc) {
-    UFAT_TRACE(("someChecks:[%i]Fail  [0] 0x%X != 0x%X\r\n", id, fat1->tableCrc, crcRes1));
-  } else {
-    UFAT_TRACE(("someChecks:[%i]Passed[0] 0x%X == 0x%X\r\n", id, fat1->tableCrc,
-                crcRes1));
-  }
-  if (crcRes2 != fat2->tableCrc) {
-    UFAT_TRACE(("someChecks:[%i]Fail  [1] 0x%X != 0x%X\r\n", id, fat2->tableCrc,
-                crcRes2));
-  } else {
-    UFAT_TRACE(("someChecks:[%i]Passed[1] 0x%X == 0x%X\r\n", id, fat2->tableCrc,
-                crcRes2));
-  }
 }
 
 static int commitChanges(ufat_fs_t *fs) {
@@ -268,9 +278,7 @@ static int commitChanges(ufat_fs_t *fs) {
   if (fs->lastError == UFAT_ERR_IO) {
     return UFAT_ERR_IO;
   }
-  fs->fat->tableCrc =
-      UFAT_CRC(fs->fat->sector,
-               UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t), 0xFFFFFFFF);
+  fs->fat->tableCrc = calcTableCRC(fs, fs->fat);
   someChecks(fs, 0);
   // validateTable(fs, 0, &i);
   UFAT_TRACE(("TESTCRC: 0x%X\r\n", fs->fat->tableCrc));
@@ -306,7 +314,7 @@ ufat_mount(ufat_fs_t *fs) {
   UFAT_ASSERT(fs->sectors < UFAT_MAX_SECTORS);
   UFAT_ASSERT(fs->read_block_device);
   UFAT_ASSERT(fs->write_block_device);
-  UFAT_TRACE(("Table Bytes = 0x%X\r\n", UFAT_TABLE_SIZE(fs->sectors)));
+  UFAT_TRACE(("ufat_mount:Table Bytes = 0x%X\r\n", UFAT_TABLE_SIZE(fs->sectors)));
   fs->lastError = UFAT_OK;
   t1State = validateTable(fs, 0, &crc1);
   t2State = validateTable(fs, 1, &crc2);
@@ -389,26 +397,22 @@ int ufat_format(ufat_fs_t *fs) {
   UFAT_ASSERT(fs->buff);
   UFAT_ASSERT(fs->fat);
   UFAT_ASSERT(fs->sectors < UFAT_MAX_SECTORS);
+  /* Minimum sector space for tableCrc */
+  UFAT_ASSERT(fs->tableSectors > sizeof(uint32_t) / sizeof(ufat_sector_t));
   UFAT_ASSERT(fs->read_block_device);
   UFAT_ASSERT(fs->write_block_device);
   UFAT_TRACE(("ufat_format()\r\n"));
   /* check sizes */
   UFAT_ASSERT(fs->tableSectors * fs->sectorSize <=
               UFAT_TABLE_SIZE(fs->sectors));
-  for (i = 0; i < fs->sectors; i++) {
-    if (i < UFAT_FIRST_SECTOR(fs->tableSectors)) {
-      fs->fat->sector[i].next = 0;
-      fs->fat->sector[i].available = 0;
-    } else {
-      fs->fat->sector[i].next = UFAT_MAX_SECTORS;
-      fs->fat->sector[i].available = 1;
-    }
+  memset(fs->fat, 0, fs->tableSectors * fs->sectorSize);
+  for (i = UFAT_FIRST_SECTOR(fs->tableSectors); i < fs->sectors; i++) {
+    fs->fat->sector[i].next = UFAT_MAX_SECTORS;
+    fs->fat->sector[i].available = 1;
     fs->fat->sector[i].sof = 0;
     fs->fat->sector[i].written = 0;
   }
-  fs->fat->tableCrc =
-      UFAT_CRC(fs->fat->sector,
-               UFAT_TABLE_SIZE(fs->sectors) - sizeof(ufat_table_t), 0xFFFFFFFF);
+  fs->fat->tableCrc = calcTableCRC(fs, fs->fat);
   /* Copy 1 */
   if (fs->write_block_device(fs->addressStart, (uint8_t *)fs->fat,
                              UFAT_TABLE_SIZE(fs->sectors))) {
@@ -446,7 +450,7 @@ int ufat_fsinfo(ufat_fs_t *fs, char *buff, int32_t maxLen) {
   char name[UFAT_MAX_NAMELEN + 1];
   len = UFAT_INFO_SNPRINT(
       (buff, maxLen,
-       "\r\nnorFAT Version %s"
+       "\r\nuFAT Version %s"
        "\r\nVolume info:Capacity %9i B\r\n",
        UFAT_VERSION,
        (fs->sectors * fs->sectorSize) - tableOverhead));
@@ -723,6 +727,7 @@ finalize:
   UFAT_DEBUG(("FILE %s closed\r\n", stream->fh.name));
   UFAT_TRACE(("ufat_fclose(%s):finalize %s\r\n", 
       traceName(stream->fh.name), ufat_errstr(ret)));
+  someChecks(fs, 200);
   return ret;
 }
 
@@ -744,6 +749,7 @@ size_t ufat_fwrite(ufat_fs_t *fs, const void *ptr, size_t size, size_t count,
   if (fs->lastError == UFAT_ERR_IO) {
     return 0;
   }
+  someChecks(fs, 100);
   if (stream->currentSector == -1) {
     stream->currentSector = findEmptySector(fs);
     if (stream->currentSector == UFAT_ERR_FULL) {
@@ -802,9 +808,11 @@ size_t ufat_fwrite(ufat_fs_t *fs, const void *ptr, size_t size, size_t count,
     if (fs->write_block_device(fs->addressStart + address, out,
                                DataLengthToWrite)) {
       fs->lastError = stream->lastError = UFAT_ERR_IO;
-      UFAT_TRACE(("UFAT_ERR_IO\r\n"));
+      UFAT_TRACE(("ufat_fwrite:UFAT_ERR_IO\r\n"));
+      someChecks(fs, 101);
       return UFAT_ERR_IO;
     }
+    someChecks(fs, 102);
     stream->fh.crc = UFAT_CRC(out, DataLengthToWrite, stream->fh.crc);
     stream->position += DataLengthToWrite;
     stream->rwPosInSector += DataLengthToWrite;
@@ -983,7 +991,7 @@ char *ufat_errstr(int err) {
   case UFAT_OK:
     return "OK";
   case UFAT_ERR_IO:
-    return "IO";
+    return "IO ERR";
   case UFAT_ERR_FILE_NOT_FOUND:
     return "FILE NOT FOUND";
   case UFAT_ERR_CRC:
