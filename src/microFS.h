@@ -56,9 +56,9 @@ typedef struct {
 } ufat_sector_t;
 
 typedef struct {
-  uint32_t tableCrc;
+  uint32_t tableCrc; // 2 sectors space or what?
   // uint32_t formatID;
-  ufat_sector_t sector[];
+  ufat_sector_t sector[]; // Bug here, >= 127 is into next
 } ufat_table_t; /* must equal sector size */
 
 typedef struct {

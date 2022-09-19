@@ -35,7 +35,7 @@ uint8_t block[FAKE_PROM_SIZE];
 #define TRACE_BUFFER_SIZE (10 * 1024 * 1024)
 
 // Testing
-uint32_t POWER_CYCLE_COUNT = 50000;
+uint32_t POWER_CYCLE_COUNT = 100000;
 uint32_t takeDownPeriod = 0;
 uint32_t takeDownTest = 0;
 uint32_t takeDownFlags = 0;
@@ -156,6 +156,11 @@ void writeTraceToFile(void) {
     fwrite(traceBuffer, 1, traceLocation, traceFile);
     fclose(traceFile);
   }
+  traceFile = fopen("ufat_dump.bin", "wb");
+  if (traceFile != NULL) {
+      fwrite(block, 1, sizeof(block), traceFile);
+      fclose(traceFile);
+  }
 }
 
 int PowerFailOnWriteTest(ufat_fs_t *fs) {
@@ -223,7 +228,7 @@ int PowerFailOnWriteTest(ufat_fs_t *fs) {
     printf("File close Failed %i\r\n", res);
     goto finalize;
   }
-  printf("Half write test passed\r\n");
+  printf("Write test passed\r\n");
 finalize:
   free(newwrite);
   free(validate);
@@ -289,7 +294,7 @@ int PowerStressTest(ufat_fs_t *fs) {
     switch (getRand() % 3) {
     case 0:
       takeDownFlags = TAKE_DOWN_WRITE;
-      takeDownPeriod = 1 + (getRand() % 500);
+      takeDownPeriod = 1 + (getRand() % 250);
       break;
     case 1:
       takeDownFlags = TAKE_DOWN_WRITE | TAKE_DOWN_READ;
@@ -298,7 +303,7 @@ int PowerStressTest(ufat_fs_t *fs) {
     case 2:
     default:
       takeDownFlags = TAKE_DOWN_WRITE;
-      takeDownPeriod = 1 + (getRand() % 1000);
+      takeDownPeriod = 1 + (getRand() % 500);
       break;
     }
 
@@ -376,6 +381,7 @@ int PowerStressTest(ufat_fs_t *fs) {
       }
     } else {
       if (ufat_errno(fs) != UFAT_ERR_IO) {
+        printf("Failing at powercycle find err %s\r\n", ufat_errstr(ufat_errno(fs)));
         return ufat_errno(fs);
       }
     }
@@ -430,7 +436,7 @@ int PowerStressTest(ufat_fs_t *fs) {
       }
     }
     if (res != UFAT_ERR_IO) {
-      printf("\r\nPower test stress failed err %i\r\n", res);
+      printf("\r\nPower test stress failed err %s\r\n", ufat_errstr(res));
       break;
     }
     res = 0;

@@ -48,6 +48,14 @@
   (sizeof(ufat_sector_t) * sectors + sizeof(ufat_table_t))*/
 #define UFAT_FIRST_SECTOR(tableSectors) (tableSectors * UFAT_TABLE_COUNT)
 
+#ifdef UFAT_TRACE
+static char* traceName(char* name) {
+  static char namestr[UFAT_MAX_NAMELEN + 1];
+  snprintf(namestr, UFAT_MAX_NAMELEN, "%s", name);
+  return namestr;
+}
+#endif
+
 #ifndef UFAT_CRC
 /* crc routines written by unknown public source */
 static uint32_t crc32_table[256];
@@ -701,17 +709,20 @@ int ufat_fclose(ufat_fs_t *fs, ufat_FILE *stream) {
     if (ret) {
       UFAT_DEBUG(("FILE %s commit failed\r\n", stream->fh.name));
       UFAT_TRACE(
-          ("ufat_fclose(%s):commit failed\r\n", stream->fh.name));
+          ("ufat_fclose(%s):commit failed %s\r\n", 
+              traceName(stream->fh.name),
+              ufat_errstr(ret)));
     } else {
       UFAT_DEBUG(("FILE %s committed\r\n", stream->fh.name));
-      UFAT_TRACE(("ufat_fclose(%s):committed\r\n", stream->fh.name));
+      UFAT_TRACE(("ufat_fclose(%s):committed\r\n", traceName(stream->fh.name)));
     }
   } else {
     ret = UFAT_OK;
   }
 finalize:
   UFAT_DEBUG(("FILE %s closed\r\n", stream->fh.name));
-  UFAT_TRACE(("ufat_fclose(%s):finalize\r\n", stream->fh.name));
+  UFAT_TRACE(("ufat_fclose(%s):finalize %s\r\n", 
+      traceName(stream->fh.name), ufat_errstr(ret)));
   return ret;
 }
 
