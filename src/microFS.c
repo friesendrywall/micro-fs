@@ -255,8 +255,8 @@ static int commitChanges(ufat_fs_t *fs) {
   return UFAT_OK;
 }
 
-ufat_mount(ufat_fs_t *fs) {
-  uint32_t t1State, t2State;
+int ufat_mount(ufat_fs_t *fs) {
+  int32_t t1State, t2State;
   uint32_t crc1, crc2;
   uint32_t scenario;
   uint32_t res;
@@ -390,7 +390,6 @@ int ufat_fsinfo(ufat_fs_t *fs, char *buff, int32_t maxLen) {
   uint32_t i, len;
   uint32_t bytesFree = 0;
   uint32_t bytesUsed = 0;
-  uint32_t bytesUncollected = 0;
   uint32_t bytesAvailable = 0;
   uint32_t fileCount = 0;
   uint32_t tableOverhead =
@@ -942,7 +941,7 @@ size_t ufat_flength(ufat_FILE *f) {
   return f->fh.len;
 }
 
-char *ufat_errstr(int err) {
+const char *ufat_errstr(int err) {
   static char errstr[12];
   switch (err) {
   case UFAT_OK:
@@ -969,6 +968,6 @@ char *ufat_errstr(int err) {
     return "NAME_LEN";
   default:
     snprintf(errstr, sizeof(errstr), "%i", err);
-    return errstr;
+    return (const char *)errstr;
   }
 }

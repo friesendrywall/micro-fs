@@ -26,6 +26,7 @@
 #define MICRO_FS_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define UFAT_VERSION "1.0"
 
@@ -58,7 +59,7 @@ typedef struct {
 
 typedef union {
   uint32_t tableCrc;
-  ufat_sector_t sector[];
+  ufat_sector_t sector[0];
 } ufat_table_t; /* must equal sector size */
 
 typedef struct {
@@ -122,6 +123,6 @@ int ufat_fsinfo(ufat_fs_t *fs, char *buff, int32_t maxLen);
 int ufat_exists(ufat_fs_t *fs, const char *filename);
 int ufat_ferror(ufat_FILE *file);
 int ufat_errno(ufat_fs_t *fs);
-char *ufat_errstr(int err);
+const char *ufat_errstr(int err);
 
 #endif
