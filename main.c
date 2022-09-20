@@ -12,6 +12,8 @@
  */
 #define _CRT_RAND_S
 
+// TODO: Merge into some core test
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
