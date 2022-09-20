@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #ifdef _CRT_RAND_S
 int rand_s(unsigned int *randomValue);
@@ -22,8 +23,18 @@ static uint8_t block[FAKE_PROM_SIZE];
 
 #define TAKE_DOWN_READ (1UL << 0)
 #define TAKE_DOWN_WRITE (1UL << 1)
+#ifdef TRACE_ENABLE
+#define TRACE_BUFFER_SIZE (10 * 1024 * 1024)
+FILE *traceFile = NULL;
+char *traceBuffer = NULL;
+uint32_t traceLocation = 0;
+uint32_t POWER_CYCLE_COUNT = 4999;
+#else
+uint32_t POWER_CYCLE_COUNT = 499999;
+#endif
 
-uint32_t POWER_CYCLE_COUNT = 49999;
+
+
 uint32_t takeDownPeriod = 0;
 uint32_t takeDownTest = 0;
 uint32_t takeDownFlags = 0;
@@ -76,6 +87,45 @@ uint32_t write_block_page(uint32_t address, uint8_t *data, uint32_t length) {
   return 0;
 }
 
+#ifdef TRACE_ENABLE
+int traceHandler(const char *format, ...) {
+  char buf[1024]; // Not thread safe
+  int n;
+  va_list argptr;
+  va_start(argptr, format);
+  n = vsprintf(buf, format, argptr);
+  va_end(argptr);
+  if (traceBuffer != NULL) {
+    if (traceLocation + n > TRACE_BUFFER_SIZE) {
+      uint32_t tail = TRACE_BUFFER_SIZE - traceLocation;
+      memcpy(&traceBuffer[traceLocation], buf, tail);
+      n -= tail;
+      memcpy(traceBuffer, &buf[tail], n);
+      traceLocation = n;
+    } else {
+      memcpy(&traceBuffer[traceLocation], buf, n);
+      traceLocation += n;
+    }
+  }
+  return 0;
+}
+
+void writeTraceToFile(void) {
+  traceFile = fopen("ufat_trace.txt", "wb");
+  if (traceFile != NULL) {
+    uint32_t tail = TRACE_BUFFER_SIZE - traceLocation;
+    fwrite(&traceBuffer[traceLocation], 1, tail, traceFile);
+    fwrite(traceBuffer, 1, traceLocation, traceFile);
+    fclose(traceFile);
+  }
+  traceFile = fopen("ufat_dump.bin", "wb");
+  if (traceFile != NULL) {
+    fwrite(block, 1, sizeof(block), traceFile);
+    fclose(traceFile);
+  }
+}
+#endif
+
 static uint32_t getRand(void) {
   unsigned int ret;
   if (rand_s(&ret) == EINVAL) {
@@ -104,6 +154,9 @@ TEST_SETUP(POWERSTRESS) {
   test = malloc(0x2000);
   validate = malloc(0x2000);
   compare = malloc(0x2000);
+#ifdef TRACE_ENABLE
+  traceBuffer = malloc(TRACE_BUFFER_SIZE);
+#endif
 }
 
 TEST_TEAR_DOWN(POWERSTRESS) { 
@@ -112,6 +165,17 @@ TEST_TEAR_DOWN(POWERSTRESS) {
     free(test);
     free(validate);
     free(compare);
+#ifdef TRACE_ENABLE
+    free(traceBuffer);
+    FILE *fl = fopen("ufat_dump.bin", "wb");
+    if (fl != NULL) {
+      fwrite(block, 1, sizeof(block), fl);
+      fclose(fl);
+    }
+    writeTraceToFile();
+    printf("Wrote trace to file\r\n");
+#endif
+    test = validate = compare = NULL;
 }
 
 int PowerStressTest(ufat_fs_t *fs) {
@@ -336,6 +400,7 @@ int PowerStressTest(ufat_fs_t *fs) {
 
 int deleteTest(ufat_fs_t *fs) {
   int res;
+  takeDownTest = 0;
   ufat_FILE f;
   res = ufat_format(fs);
   res = ufat_mount(fs);
@@ -373,6 +438,7 @@ int deleteTest(ufat_fs_t *fs) {
 int fillupTest(ufat_fs_t *fs) {
   int32_t res = 0;
   uint32_t i;
+  takeDownTest = 0;
   char buf[128];
   ufat_FILE f;
   assert(test);
@@ -402,7 +468,7 @@ int fillupTest(ufat_fs_t *fs) {
     }
     res = ufat_fclose(fs, &f);
   }
-  free(test);
+
   if (res != UFAT_ERR_FULL) {
     sprintf(buf, "Test failed, did not fill up err %s", ufat_errstr(res));
     TEST_MESSAGE((const char *)buf);
@@ -414,7 +480,7 @@ int fillupTest(ufat_fs_t *fs) {
 }
 
 int randomWriteLengths(ufat_fs_t *fs) {
-  int32_t testCount = 1000;
+  int32_t testCount = 10000;
   int32_t i, j;
   int32_t res = 0;
   int32_t tl, testLength;
@@ -424,12 +490,13 @@ int randomWriteLengths(ufat_fs_t *fs) {
   assert(compare);
   srand((unsigned)time(NULL));
   j = 0;
-  for (i = 0; i < 0x1000; i++) {
-    test[i] = (uint8_t)getRand();
-    ;
-  }
 
+  for (i = 0; i < 0x1000; i++) {
+    test[i] = (getRand() &0xFF);
+  }
+  takeDownTest = 0;
   // Rollover
+  memset(block, 0, sizeof(block));
   res = ufat_format(fs);
   TEST_ASSERT_MESSAGE(res == UFAT_OK, "Format failed");
   res = ufat_mount(fs);
@@ -444,9 +511,8 @@ int randomWriteLengths(ufat_fs_t *fs) {
       TEST_FAIL_MESSAGE("UFAT_ERR_FILE_NOT_FOUND");
       break;
     }
-    // sprintf(buf, "ufat_fopen error = %s", ufat_errstr(res));
     TEST_ASSERT_EQUAL_INT32_MESSAGE(res, UFAT_OK, "ufat_fopen error");
-    // TEST_ASSERT_MESSAGE(res == UFAT_OK, "ufat_fopen error");
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(f.error, 0, "ufat_fopen error 2");
     testLength = (uint8_t)getRand();
     testLength %= 0xFF;
     if (testLength == 0) {
@@ -469,12 +535,16 @@ int randomWriteLengths(ufat_fs_t *fs) {
       j -= tl;
     }
     res = ufat_fclose(fs, &f);
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(res, UFAT_OK, "ufat_fclose error");
     if (testCount-- == 0) {
       break;
     }
     res = ufat_fopen(fs, buf, "r", &f);
     if (res == UFAT_ERR_FILE_NOT_FOUND) {
+      sprintf(buf, "%s UFAT_ERR_FILE_NOT_FOUND %i", buf, testLength);
+      TEST_FAIL_MESSAGE(buf);
       res = UFAT_ERR_NULL;
+
     } else {
       res = ufat_fread(fs, compare, 1, testLength, &f);
       if (res != testLength) {
@@ -496,6 +566,7 @@ int randomWriteLengths(ufat_fs_t *fs) {
         break;
       }
       res = ufat_fclose(fs, &f);
+      TEST_ASSERT_EQUAL_INT32_MESSAGE(res, UFAT_OK, "ufat_fclose error 2");
     }
   }
   if (res != UFAT_OK) {
@@ -517,5 +588,5 @@ TEST(POWERSTRESS, TestPowerStress) {
   TEST_ASSERT_EQUAL(0, deleteTest(&fs1));
   TEST_ASSERT_EQUAL(0, fillupTest(&fs1));
   TEST_ASSERT_EQUAL(0, randomWriteLengths(&fs1));
-  printf("Completed");
+  TEST_PASS();
 }

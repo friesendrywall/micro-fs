@@ -25,7 +25,7 @@ ifeq ($(shell uname -s), Darwin)
 C_COMPILER=clang
 endif
 
-UNITY_ROOT=./Unity/
+UNITY_ROOT=./Unity
 
 CFLAGS=-std=c99
 CFLAGS += -Wall
@@ -58,6 +58,10 @@ SYMBOLS=-DUNITY_FIXTURE_NO_EXTRAS
 
 all: clean default
 
+trace:
+	$(C_COMPILER) $(CFLAGS) -DTRACE_ENABLE $(INC_DIRS) $(SYMBOLS) $(SRC_FILES1) -o $(TARGET1)
+	- ./$(TARGET1) -v
+
 default:
 	$(C_COMPILER) $(CFLAGS) $(INC_DIRS) $(SYMBOLS) $(SRC_FILES1) -o $(TARGET1)
 	- ./$(TARGET1) -v
@@ -67,4 +71,5 @@ clean:
 
 ci: CFLAGS += -Werror
 ci: default
+ci: trace
 

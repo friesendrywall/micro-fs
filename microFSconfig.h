@@ -36,7 +36,11 @@
 #define UFAT_RAND rand
 
 int traceHandler(const char *format, ...);
-#define UFAT_TRACE(x) // traceHandler x
+#ifdef TRACE_ENABLE
+#define UFAT_TRACE(x) traceHandler x
+#else
+#define UFAT_TRACE(x)
+#endif
 
 #define UFAT_ASSERT TEST_ASSERT
 

@@ -468,7 +468,7 @@ int ufat_fopen(ufat_fs_t *fs, const char *filename, const char *mode,
     UFAT_TRACE(("ufat_fopen:unsupported\r\n"));
     return UFAT_ERR_UNSUPPORTED;
   }
-  memset(file, 0, sizeof(ufat_file_t));
+  memset(file, 0, sizeof(ufat_FILE));
   if (strlen(filename) >= UFAT_MAX_NAMELEN - 1) {
     file->lastError = UFAT_ERR_NAME_LEN;
     file->opened = 0;
